@@ -49,7 +49,7 @@ class MainActivity : ComponentActivity() {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     // MainScreen handles all state and tab options
                     MainScreen(
-                        onSpeak = { text -> speak(text) },
+                        onSpeak = { text, pitch, rate -> speak(text, pitch, rate) },
                         modifier = Modifier.fillMaxSize()
                     )
                 }
@@ -57,8 +57,10 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun speak(text: String) {
+    private fun speak(text: String, pitch: Float = 1.0f, rate: Float = 1.0f) {
         if (isTtsInitialized && tts != null) {
+            tts?.setPitch(pitch)
+            tts?.setSpeechRate(rate)
             tts?.speak(text, TextToSpeech.QUEUE_FLUSH, null, "SuporteTeaUtteranceId")
         } else {
             Toast.makeText(this, "Aguardando síntese de voz...", Toast.LENGTH_SHORT).show()

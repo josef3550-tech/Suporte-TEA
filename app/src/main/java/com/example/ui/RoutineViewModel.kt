@@ -7,6 +7,8 @@ import com.example.data.AppDatabase
 import com.example.data.CommunicationCard
 import com.example.data.RoutineItem
 import com.example.data.RoutineRepository
+import com.example.data.UserProfile
+import com.example.data.UserProfileRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -16,8 +18,10 @@ import kotlinx.coroutines.launch
 
 class RoutineViewModel(application: Application) : AndroidViewModel(application) {
     private val repository: RoutineRepository
+    private val userProfileRepository: UserProfileRepository = UserProfileRepository(application)
 
     val uiState: StateFlow<List<RoutineItem>>
+    val userProfile: StateFlow<UserProfile> = userProfileRepository.userProfile
 
     private val _lastSpokenCard = MutableStateFlow<CommunicationCard?>(null)
     val lastSpokenCard: StateFlow<CommunicationCard?> = _lastSpokenCard.asStateFlow()
@@ -38,9 +42,26 @@ class RoutineViewModel(application: Application) : AndroidViewModel(application)
         )
     }
 
+    fun speakCard(card: CommunicationCard, onSpeak: (String, Float, Float) -> Unit) {
+        _lastSpokenCard.value = card
+        val profile = userProfile.value
+        onSpeak(card.text, profile.speechPitch, profile.speechRate)
+    }
+
     fun speakCard(card: CommunicationCard, onSpeak: (String) -> Unit) {
         _lastSpokenCard.value = card
         onSpeak(card.text)
+    }
+
+    fun updateProfile(profile: UserProfile) {
+        userProfileRepository.saveProfile(profile)
+    }
+
+    fun testVoice(onSpeak: (String, Float, Float) -> Unit) {
+        val profile = userProfile.value
+        val nameToUse = profile.displayName
+        val sampleText = "Olá! Meu nome é $nameToUse. Esta é a minha voz no aplicativo Suporte T E A!"
+        onSpeak(sampleText, profile.speechPitch, profile.speechRate)
     }
 
     fun clearLastSpoken() {

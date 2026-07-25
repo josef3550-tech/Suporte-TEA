@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -60,7 +61,11 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -83,22 +88,25 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.AppThemeColor
 import com.example.data.CommunicationCard
 import com.example.data.CommunicationData
 import com.example.data.RoutineItem
+import com.example.data.UserProfile
 import com.example.ui.RoutineViewModel
 import kotlin.random.Random
 
 @Composable
 fun MainScreen(
-    onSpeak: (String) -> Unit,
+    onSpeak: (String, Float, Float) -> Unit,
     modifier: Modifier = Modifier,
     viewModel: RoutineViewModel = viewModel()
 ) {
-    var selectedTab by remember { mutableStateOf(0) } // 0 = Comunicação, 1 = Agenda Visual
+    var selectedTab by remember { mutableStateOf(0) } // 0 = Comunicação, 1 = Agenda Visual, 2 = Perfil
     var isParentModeEnabled by remember { mutableStateOf(false) }
     var showParentGate by remember { mutableStateOf(false) }
 
+    val userProfile by viewModel.userProfile.collectAsState()
     val lastSpokenCard by viewModel.lastSpokenCard.collectAsState()
 
     Scaffold(
@@ -108,7 +116,9 @@ fun MainScreen(
             .navigationBarsPadding(),
         topBar = {
             TopAppBarSection(
+                userProfile = userProfile,
                 isParentModeEnabled = isParentModeEnabled,
+                onProfileClick = { selectedTab = 2 },
                 onParentModeToggle = {
                     if (isParentModeEnabled) {
                         isParentModeEnabled = false
@@ -121,6 +131,7 @@ fun MainScreen(
         bottomBar = {
             BottomNavigationBarSection(
                 selectedTab = selectedTab,
+                userProfile = userProfile,
                 onTabSelected = { selectedTab = it }
             )
         }
@@ -134,12 +145,18 @@ fun MainScreen(
             when (selectedTab) {
                 0 -> CommunicationTab(
                     viewModel = viewModel,
+                    userProfile = userProfile,
                     lastSpokenCard = lastSpokenCard,
                     onSpeak = onSpeak
                 )
                 1 -> RoutineTab(
                     viewModel = viewModel,
                     isParentModeEnabled = isParentModeEnabled
+                )
+                2 -> ProfileTab(
+                    viewModel = viewModel,
+                    userProfile = userProfile,
+                    onSpeak = onSpeak
                 )
             }
 
@@ -159,9 +176,12 @@ fun MainScreen(
 
 @Composable
 fun TopAppBarSection(
+    userProfile: UserProfile,
     isParentModeEnabled: Boolean,
+    onProfileClick: () -> Unit,
     onParentModeToggle: () -> Unit
 ) {
+    val themeColor = userProfile.themeColor
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = Color.White,
@@ -171,31 +191,47 @@ fun TopAppBarSection(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "🧩",
-                    fontSize = 32.sp,
-                    modifier = Modifier.padding(end = 10.dp)
-                )
+            // Child Avatar Badge & App Title Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(16.dp))
+                    .clickable(onClick = onProfileClick)
+                    .padding(4.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = themeColor.containerColor,
+                    border = BorderStroke(2.dp, themeColor.primaryColor)
+                ) {
+                    Text(
+                        text = userProfile.avatarEmoji,
+                        fontSize = 28.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(10.dp))
+
                 Column {
                     Text(
                         text = "SUPORTE TEA",
-                        fontSize = 22.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Black,
                         letterSpacing = (-0.5).sp,
                         color = Color(0xFF1A1C1E)
                     )
                     Text(
-                        text = "COMUNICAÇÃO ASSISTIVA",
+                        text = "PERFIL: ${userProfile.displayName.uppercase()}",
                         fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 2.sp,
-                        color = Color(0xFF2563EB),
-                        modifier = Modifier.padding(top = 2.dp)
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.5.sp,
+                        color = themeColor.primaryColor,
+                        modifier = Modifier.padding(top = 1.dp)
                     )
                 }
             }
@@ -204,7 +240,7 @@ fun TopAppBarSection(
             Button(
                 onClick = onParentModeToggle,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isParentModeEnabled) Color(0xFF10B981) else Color(0xFF2563EB)
+                    containerColor = if (isParentModeEnabled) Color(0xFF10B981) else themeColor.primaryColor
                 ),
                 shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
@@ -217,7 +253,7 @@ fun TopAppBarSection(
                 )
                 Spacer(modifier = Modifier.width(6.dp))
                 Text(
-                    text = if (isParentModeEnabled) "ÁREA PAIS: ATIVA" else "ÁREA DOS PAIS",
+                    text = if (isParentModeEnabled) "PAIS: ATIVA" else "PAIS",
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Black,
                     letterSpacing = 0.5.sp
@@ -230,8 +266,10 @@ fun TopAppBarSection(
 @Composable
 fun BottomNavigationBarSection(
     selectedTab: Int,
+    userProfile: UserProfile,
     onTabSelected: (Int) -> Unit
 ) {
+    val themeColor = userProfile.themeColor
     NavigationBar(
         containerColor = Color.White,
         tonalElevation = 10.dp
@@ -242,7 +280,7 @@ fun BottomNavigationBarSection(
             icon = {
                 Text(
                     text = "🗣️",
-                    fontSize = 26.sp,
+                    fontSize = 24.sp,
                     modifier = Modifier.alpha(if (selectedTab == 0) 1.0f else 0.6f)
                 )
             },
@@ -250,8 +288,8 @@ fun BottomNavigationBarSection(
                 Text(
                     text = "COMUNICAÇÃO",
                     fontWeight = if (selectedTab == 0) FontWeight.Black else FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = if (selectedTab == 0) Color(0xFF2563EB) else Color(0xFF64748B),
+                    fontSize = 10.sp,
+                    color = if (selectedTab == 0) themeColor.primaryColor else Color(0xFF64748B),
                     letterSpacing = 0.5.sp
                 )
             },
@@ -264,7 +302,7 @@ fun BottomNavigationBarSection(
             icon = {
                 Text(
                     text = "📅",
-                    fontSize = 26.sp,
+                    fontSize = 24.sp,
                     modifier = Modifier.alpha(if (selectedTab == 1) 1.0f else 0.6f)
                 )
             },
@@ -272,12 +310,34 @@ fun BottomNavigationBarSection(
                 Text(
                     text = "AGENDA VISUAL",
                     fontWeight = if (selectedTab == 1) FontWeight.Black else FontWeight.Bold,
-                    fontSize = 11.sp,
-                    color = if (selectedTab == 1) Color(0xFF2563EB) else Color(0xFF64748B),
+                    fontSize = 10.sp,
+                    color = if (selectedTab == 1) themeColor.primaryColor else Color(0xFF64748B),
                     letterSpacing = 0.5.sp
                 )
             },
             modifier = Modifier.testTag("nav_routine")
+        )
+
+        NavigationBarItem(
+            selected = selectedTab == 2,
+            onClick = { onTabSelected(2) },
+            icon = {
+                Text(
+                    text = userProfile.avatarEmoji,
+                    fontSize = 24.sp,
+                    modifier = Modifier.alpha(if (selectedTab == 2) 1.0f else 0.6f)
+                )
+            },
+            label = {
+                Text(
+                    text = "PERFIL",
+                    fontWeight = if (selectedTab == 2) FontWeight.Black else FontWeight.Bold,
+                    fontSize = 10.sp,
+                    color = if (selectedTab == 2) themeColor.primaryColor else Color(0xFF64748B),
+                    letterSpacing = 0.5.sp
+                )
+            },
+            modifier = Modifier.testTag("nav_profile")
         )
     }
 }
@@ -287,16 +347,85 @@ fun BottomNavigationBarSection(
 @Composable
 fun CommunicationTab(
     viewModel: RoutineViewModel,
+    userProfile: UserProfile,
     lastSpokenCard: CommunicationCard?,
-    onSpeak: (String) -> Unit
+    onSpeak: (String, Float, Float) -> Unit
 ) {
     var selectedCategory by remember { mutableStateOf("Todos") }
+    val themeColor = userProfile.themeColor
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .padding(12.dp)
     ) {
+        // Child Presentation Greeting Banner (when enabled)
+        if (userProfile.useGreetingInCards) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 12.dp)
+                    .clickable {
+                        val greetingCard = CommunicationCard(
+                            emoji = userProfile.avatarEmoji,
+                            text = "Meu nome é ${userProfile.displayName}!",
+                            category = "Apresentação"
+                        )
+                        viewModel.speakCard(greetingCard, onSpeak)
+                    }
+                    .testTag("greeting_card_banner"),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = themeColor.containerColor),
+                border = BorderStroke(2.5.dp, themeColor.primaryColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Row(
+                    modifier = Modifier.padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = userProfile.avatarEmoji,
+                        fontSize = 36.sp,
+                        modifier = Modifier.padding(end = 12.dp)
+                    )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "APRESENTAÇÃO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            color = themeColor.primaryColor,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "Meu nome é ${userProfile.displayName}!",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF1E293B)
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            val greetingCard = CommunicationCard(
+                                emoji = userProfile.avatarEmoji,
+                                text = "Meu nome é ${userProfile.displayName}!",
+                                category = "Apresentação"
+                            )
+                            viewModel.speakCard(greetingCard, onSpeak)
+                        },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(themeColor.primaryColor, RoundedCornerShape(12.dp))
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.VolumeUp,
+                            contentDescription = "Falar Nome",
+                            tint = Color.White
+                        )
+                    }
+                }
+            }
+        }
+
         // SPOKEN PHRASE DISPLAY BAR (PECS display strip)
         AnimatedVisibility(visible = lastSpokenCard != null) {
             if (lastSpokenCard != null) {
@@ -306,8 +435,8 @@ fun CommunicationTab(
                         .padding(bottom = 12.dp)
                         .testTag("last_spoken_display"),
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
-                    border = BorderStroke(3.dp, Color(0xFF3B82F6))
+                    colors = CardDefaults.cardColors(containerColor = themeColor.containerColor),
+                    border = BorderStroke(3.dp, themeColor.primaryColor)
                 ) {
                     Row(
                         modifier = Modifier
@@ -329,7 +458,7 @@ fun CommunicationTab(
                                 Text(
                                     text = "Estou dizendo:",
                                     fontSize = 12.sp,
-                                    color = Color(0xFF3B82F6),
+                                    color = themeColor.primaryColor,
                                     fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
@@ -344,15 +473,17 @@ fun CommunicationTab(
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             // Replay audio button
                             IconButton(
-                                onClick = { onSpeak(lastSpokenCard.text) },
+                                onClick = {
+                                    onSpeak(lastSpokenCard.text, userProfile.speechPitch, userProfile.speechRate)
+                                },
                                 modifier = Modifier
                                     .size(48.dp)
-                                    .background(Color(0xFFDBEAFE), RoundedCornerShape(12.dp))
+                                    .background(themeColor.containerColor, RoundedCornerShape(12.dp))
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.VolumeUp,
                                     contentDescription = "Falar de novo",
-                                    tint = Color(0xFF1E40AF)
+                                    tint = themeColor.primaryColor
                                 )
                             }
 
@@ -1264,4 +1395,458 @@ fun AddEditRoutineDialog(
         },
         shape = RoundedCornerShape(24.dp)
     )
+}
+
+// ==================== USER PROFILE TAB ====================
+
+@Composable
+fun ProfileTab(
+    viewModel: RoutineViewModel,
+    userProfile: UserProfile,
+    onSpeak: (String, Float, Float) -> Unit
+) {
+    val context = LocalContext.current
+    var nameInput by remember(userProfile) { mutableStateOf(userProfile.name) }
+    var nicknameInput by remember(userProfile) { mutableStateOf(userProfile.nickname) }
+    var selectedEmoji by remember(userProfile) { mutableStateOf(userProfile.avatarEmoji) }
+    var selectedThemeKey by remember(userProfile) { mutableStateOf(userProfile.themeColorKey) }
+    var pitchVal by remember(userProfile) { mutableStateOf(userProfile.speechPitch) }
+    var rateVal by remember(userProfile) { mutableStateOf(userProfile.speechRate) }
+    var greetingInCards by remember(userProfile) { mutableStateOf(userProfile.useGreetingInCards) }
+
+    val currentTheme = try { AppThemeColor.valueOf(selectedThemeKey) } catch (e: Exception) { AppThemeColor.BLUE }
+
+    val avatarList = listOf(
+        "👦", "👧", "🧒", "🦁", "🐻", "🚀", 
+        "🎨", "🌟", "🧩", "🦄", "🐶", "👑", 
+        "🐱", "🤖", "🐬", "🦸"
+    )
+
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        contentPadding = PaddingValues(bottom = 32.dp)
+    ) {
+        // Hero Header Card
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = currentTheme.containerColor),
+                border = BorderStroke(3.dp, currentTheme.primaryColor),
+                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Big Avatar Badge
+                    Surface(
+                        shape = RoundedCornerShape(24.dp),
+                        color = Color.White,
+                        border = BorderStroke(3.dp, currentTheme.primaryColor),
+                        modifier = Modifier.size(76.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(text = selectedEmoji, fontSize = 42.sp)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column {
+                        Text(
+                            text = if (nicknameInput.isNotBlank()) nicknameInput else if (nameInput.isNotBlank()) nameInput else "Perfil da Criança",
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Black,
+                            color = Color(0xFF1A1C1E)
+                        )
+                        Text(
+                            text = "Personalização de Avatar, Cores e Voz",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = currentTheme.primaryDarkColor
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Surface(
+                            color = currentTheme.primaryColor,
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = currentTheme.title.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 1: Identification
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(2.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "1. IDENTIFICAÇÃO DA CRIANÇA",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = currentTheme.primaryColor,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { nameInput = it },
+                        label = { Text("Nome da Criança") },
+                        placeholder = { Text("Ex: Lucas") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("profile_name_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    OutlinedTextField(
+                        value = nicknameInput,
+                        onValueChange = { nicknameInput = it },
+                        label = { Text("Apelido / Carinho") },
+                        placeholder = { Text("Ex: Lulu") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("profile_nickname_input"),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                text = "Mostrar cartão de apresentação",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF1E293B)
+                            )
+                            Text(
+                                text = "Exibe cartão \"Meu nome é...\" no painel principal",
+                                fontSize = 11.sp,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                        Switch(
+                            checked = greetingInCards,
+                            onCheckedChange = { greetingInCards = it },
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = currentTheme.primaryColor
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 2: Avatar Picker
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(2.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "2. ESCOLHA O AVATAR DA CRIANÇA",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = currentTheme.primaryColor,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyRow(
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        items(avatarList) { emoji ->
+                            val isSelected = emoji == selectedEmoji
+                            Card(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clickable { selectedEmoji = emoji }
+                                    .testTag("avatar_picker_$emoji"),
+                                shape = RoundedCornerShape(16.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (isSelected) currentTheme.containerColor else Color(0xFFF8FAFC)
+                                ),
+                                border = BorderStroke(
+                                    width = if (isSelected) 3.dp else 1.5.dp,
+                                    color = if (isSelected) currentTheme.primaryColor else Color(0xFFCBD5E1)
+                                ),
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (isSelected) 4.dp else 1.dp)
+                            ) {
+                                Box(
+                                    contentAlignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize()
+                                ) {
+                                    Text(text = emoji, fontSize = 32.sp)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 3: Interface Color Theme
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(2.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "3. TEMA DE CORES DA INTERFACE",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = currentTheme.primaryColor,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        AppThemeColor.values().toList().chunked(2).forEach { rowThemes ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                rowThemes.forEach { themeOption ->
+                                    val isSelected = themeOption.name == selectedThemeKey
+                                    Card(
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .clickable { selectedThemeKey = themeOption.name }
+                                            .testTag("theme_picker_${themeOption.name}"),
+                                        shape = RoundedCornerShape(14.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSelected) themeOption.containerColor else Color(0xFFF8FAFC)
+                                        ),
+                                        border = BorderStroke(
+                                            width = if (isSelected) 3.dp else 1.5.dp,
+                                            color = if (isSelected) themeOption.primaryColor else Color(0xFFCBD5E1)
+                                        )
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(10.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .background(themeOption.primaryColor, RoundedCornerShape(8.dp))
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = themeOption.title,
+                                                fontSize = 11.sp,
+                                                fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
+                                                color = Color(0xFF1E293B)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section 4: Voice TTS Settings
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                border = BorderStroke(2.dp, Color(0xFFE2E8F0)),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        text = "4. CONFIGURAÇÃO DA VOZ (TEXT-TO-SPEECH)",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Black,
+                        color = currentTheme.primaryColor,
+                        letterSpacing = 0.5.sp
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Pitch
+                    Text(
+                        text = "Tom de Voz (Pitch): %.1f".format(pitchVal),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF334155)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Grave" to 0.8f, "Normal" to 1.0f, "Infantil" to 1.2f, "Agudo" to 1.4f).forEach { (label, value) ->
+                            val isSel = kotlin.math.abs(pitchVal - value) < 0.08f
+                            Button(
+                                onClick = { pitchVal = value },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSel) currentTheme.primaryColor else Color(0xFFF1F5F9)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else Color(0xFF475569)
+                                )
+                            }
+                        }
+                    }
+                    Slider(
+                        value = pitchVal,
+                        onValueChange = { pitchVal = it },
+                        valueRange = 0.5f..1.6f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = currentTheme.primaryColor,
+                            activeTrackColor = currentTheme.primaryColor
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Rate
+                    Text(
+                        text = "Velocidade da Fala (Rate): %.2f".format(rateVal),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF334155)
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        listOf("Muito Lenta" to 0.7f, "Calma" to 0.85f, "Normal" to 1.0f, "Rápida" to 1.2f).forEach { (label, value) ->
+                            val isSel = kotlin.math.abs(rateVal - value) < 0.08f
+                            Button(
+                                onClick = { rateVal = value },
+                                modifier = Modifier.weight(1f),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isSel) currentTheme.primaryColor else Color(0xFFF1F5F9)
+                                ),
+                                contentPadding = PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Text(
+                                    text = label,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSel) Color.White else Color(0xFF475569)
+                                )
+                            }
+                        }
+                    }
+                    Slider(
+                        value = rateVal,
+                        onValueChange = { rateVal = it },
+                        valueRange = 0.5f..1.4f,
+                        colors = SliderDefaults.colors(
+                            thumbColor = currentTheme.primaryColor,
+                            activeTrackColor = currentTheme.primaryColor
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // Test Voice button
+                    OutlinedButton(
+                        onClick = {
+                            val nameToUse = nicknameInput.ifBlank { nameInput.ifBlank { "Criança" } }
+                            onSpeak("Olá! Meu nome é $nameToUse. Esta é a minha voz no aplicativo Suporte T E A!", pitchVal, rateVal)
+                        },
+                        modifier = Modifier.fillMaxWidth().testTag("test_voice_button"),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(2.dp, currentTheme.primaryColor)
+                    ) {
+                        Icon(imageVector = Icons.Filled.VolumeUp, contentDescription = null, tint = currentTheme.primaryColor)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "🔊 TESTAR SÍNTESE DE VOZ",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Black,
+                            color = currentTheme.primaryColor
+                        )
+                    }
+                }
+            }
+        }
+
+        // Section 5: Save Button
+        item {
+            Button(
+                onClick = {
+                    val updatedProfile = UserProfile(
+                        name = nameInput,
+                        nickname = nicknameInput,
+                        avatarEmoji = selectedEmoji,
+                        themeColorKey = selectedThemeKey,
+                        speechPitch = pitchVal,
+                        speechRate = rateVal,
+                        useGreetingInCards = greetingInCards
+                    )
+                    viewModel.updateProfile(updatedProfile)
+                    Toast.makeText(
+                        context,
+                        "Perfil de ${updatedProfile.displayName} salvo com sucesso!",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp)
+                    .testTag("save_profile_button"),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = currentTheme.primaryColor),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+            ) {
+                Text(
+                    text = "💾 SALVAR PERFIL DO USUÁRIO",
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = 1.sp,
+                    color = Color.White
+                )
+            }
+        }
+    }
 }
